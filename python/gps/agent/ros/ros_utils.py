@@ -26,11 +26,16 @@ def msg_to_sample(ros_msg, agent):
     Convert a SampleResult ROS message into a Sample Python object.
     """
     sample = Sample(agent)
+
+    # Sensor_data
+    # int32 id
+    # DataType[] sensor_data
+
     for sensor in ros_msg.sensor_data:
         sensor_id = sensor.data_type
         shape = np.array(sensor.shape)
         data = np.array(sensor.data).reshape(shape)
-        sample.set(sensor_id, data)
+        sample.set(sensor_id, data) # Set trajectory data for a particular sensor.
     return sample
 
 

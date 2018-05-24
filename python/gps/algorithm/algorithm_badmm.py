@@ -49,6 +49,7 @@ class AlgorithmBADMM(Algorithm):
         #     'min_samples_per_cluster': 40,
         #     'max_samples': 40,
         # }
+
         policy_prior = self._hyperparams['policy_prior']
 
         # self._cond_idx = hyperparams['train_conditions']
@@ -82,8 +83,11 @@ class AlgorithmBADMM(Algorithm):
         Args:
             sample_lists: List of SampleList objects for each condition.
         """
+        #  Save sample list for each M
+        # self.M = 2
         for m in range(self.M):
-            self.cur[m].sample_list = sample_lists[m]
+            # self.cur = IterationData()
+            self.cur[m].sample_list = sample_lists[m] # SampleList()
 
         self._set_interp_values()
         self._update_dynamics()  # Update dynamics model using all sample.
@@ -93,19 +97,25 @@ class AlgorithmBADMM(Algorithm):
             # save initial kl for debugging / visualization
             self.cur[m].pol_info.init_kl = self._policy_kl(m)[0]
 
+        """"
+
         # Run inner loop to compute new policies.
         for inner_itr in range(self._hyperparams['inner_iterations']):
             #TODO: Could start from init controller.
             if self.iteration_count > 0 or inner_itr > 0:
                 # Update the policy.
                 self._update_policy(inner_itr)
+            
             for m in range(self.M):
                 self._update_policy_fit(m)  # Update policy priors.
+            
             if self.iteration_count > 0 or inner_itr > 0:
                 step = (inner_itr == self._hyperparams['inner_iterations'] - 1)
+                
                 # Update dual variables.
                 for m in range(self.M):
                     self._policy_dual_step(m, step=step)
+            
             self._update_trajectories()
 
         self._advance_iteration_variables()

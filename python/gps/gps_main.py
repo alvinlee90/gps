@@ -100,15 +100,24 @@ class GPSMain(object):
                         self._take_sample(itr, cond, i)
 
                 traj_sample_lists = [
+                    # Return the requested samples based on the start and end indices.
+                    # return SampleList(self._samples[condition][start:] (returns all samples)
                     self.agent.get_samples(cond, -self._hyperparams['num_samples'])
                     for cond in self._train_idx
                 ]
 
                 # Clear agent samples.
+                # Reset the samples for a given condition, defaulting to all conditions
                 self.agent.clear_samples()
 
+                # Take an iteration of the algorithm (AlgorithmBADMM)
+                # self.algorithm.iteration(sample_lists)
                 self._take_iteration(itr, traj_sample_lists)
+                
+                # Take samples from the policy to see how it's doing.
                 pol_sample_lists = self._take_policy_samples()
+                
+                # Log data and algorithm, and update the GUI
                 self._log_data(itr, traj_sample_lists, pol_sample_lists)
         except Exception as e:
             traceback.print_exception(*sys.exc_info())
@@ -231,7 +240,8 @@ class GPSMain(object):
         if self.gui:
             self.gui.set_status_text('Calculating.')
             self.gui.start_display_calculating()
-        self.algorithm.iteration(sample_lists)
+        
+        self.algorithm.iteration(sample_lists) # run inner loop to compute new policies
         
         if self.gui:
             self.gui.stop_display_calculating()
@@ -246,18 +256,22 @@ class GPSMain(object):
         if 'verbose_policy_trials' not in self._hyperparams:
             # AlgorithmTrajOpt
             return None
+
         verbose = self._hyperparams['verbose_policy_trials']
        
         if self.gui:
             self.gui.set_status_text('Taking policy samples.')
+
         pol_samples = [[None] for _ in range(len(self._test_idx))]
         # Since this isn't noisy, just take one sample.
         # TODO: Make this noisy? Add hyperparam?
         # TODO: Take at all conditions for GUI?
+        
         for cond in range(len(self._test_idx)):
             pol_samples[cond][0] = self.agent.sample(
                 self.algorithm.policy_opt.policy, self._test_idx[cond],
                 verbose=verbose, save=False, noisy=False)
+        
         return [SampleList(samples) for samples in pol_samples]
 
     def test_policy(self, itr, N):
@@ -307,16 +321,20 @@ class GPSMain(object):
             self.gui.save_figure(
                 self._data_files_dir + ('figure_itr_%02d.png' % itr)
             )
+
         if 'no_sample_logging' in self._hyperparams['common']:
             return
+        
         self.data_logger.pickle(
             self._data_files_dir + ('algorithm_itr_%02d.pkl' % itr),
             copy.copy(self.algorithm)
         )
+        
         self.data_logger.pickle(
             self._data_files_dir + ('traj_sample_itr_%02d.pkl' % itr),
             copy.copy(traj_sample_lists)
         )
+        
         if pol_sample_lists:
             self.data_logger.pickle(
                 self._data_files_dir + ('pol_sample_itr_%02d.pkl' % itr),

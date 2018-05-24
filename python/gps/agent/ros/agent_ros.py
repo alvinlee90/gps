@@ -101,6 +101,7 @@ class AgentROS(Agent):
         result_msg = self._data_service.publish_and_wait(request)
         # TODO - Make IDs match, assert that they match elsewhere here.
         sample = msg_to_sample(result_msg, self)
+        
         return sample
 
     # TODO - The following could be more general by being relax_actuator
@@ -176,18 +177,21 @@ class AgentROS(Agent):
         # Execute trial.
         trial_command = TrialCommand() # ROS message 
         trial_command.id = self._get_next_seq_id()
-        trial_command.controller = policy_to_msg(policy, noise)
-        trial_command.T = self.T
+        trial_command.controller = policy_to_msg(policy, noise) # ControllerParams
+        trial_command.T = self.T                                # Trajectory length
         trial_command.id = self._get_next_seq_id()
-        trial_command.frequency = self._hyperparams['frequency']
-        ee_points = self._hyperparams['end_effector_points']
+        trial_command.frequency = self._hyperparams['frequency']    # Controller frequency
+        
+        ee_points = self._hyperparams['end_effector_points']        # 3*n_points array containing offsets
         trial_command.ee_points = ee_points.reshape(ee_points.size).tolist()
         trial_command.ee_points_tgt = \
-                self._hyperparams['ee_points_tgt'][condition].tolist()
-        trial_command.state_datatypes = self._hyperparams['state_include']
-        trial_command.obs_datatypes = self._hyperparams['state_include']
+                self._hyperparams['ee_points_tgt'][condition].tolist() #  3*n_points array containing the desired ee_points for this trial
+        
+        trial_command.state_datatypes = self._hyperparams['state_include']  # Which data types to include in state
+        trial_command.obs_datatypes = self._hyperparams['state_include']    # Which data types to include in observation
 
-        # use_tf is False
+        # ------------- Local Policy -------------
+        # use_tf is False 
         if self.use_tf is False:
             # self._trial_service = ServiceEmulator(
             #     self._hyperparams['trial_command_topic'], TrialCommand,
@@ -200,14 +204,22 @@ class AgentROS(Agent):
             )
             sample = msg_to_sample(sample_msg, self)
             
+            # Saving the samples for tf[?]
             if save:
                 self._samples[condition].append(sample)
             
             return sample
         else:
             self._trial_service.publish(trial_command)
-            sample_msg = self.run_trial_tf(policy, time_to_run=self._hyperparams['trial_timeout'])
+
+            # Run an async controller from a policy. 
+            # The async controller receives observations from ROS subscribers
+            # and then uses them to publish actions
+            sample_msg = self.run_trial_tf(policy, 
+                time_to_run=self._hyperparams['trial_timeout'])
+            
             sample = msg_to_sample(sample_msg, self)
+            
             if save:
                 self._samples[condition].append(sample)
             return sample
@@ -218,10 +230,23 @@ class AgentROS(Agent):
         should_stop = False
         consecutive_failures = 0
         start_time = time.time()
+       
         while should_stop is False:
             if self.observations_stale is False:
                 consecutive_failures = 0
                 last_obs = tf_obs_msg_to_numpy(self._tf_subscriber_msg)
+
+                # tf_policy_to_action_msg - Convert an action to a 
+                # TFActionCommand message.
+                # msg = TfActionCommand()
+                # msg.action = action.tolist()
+                # msg.dU = deg_action
+                # msg.id = action_id
+                # return msg
+
+                # def _get_new_action(self, policy, obs):
+                #     return policy.act(None, obs, None, None)
+
                 action_msg = tf_policy_to_action_msg(self.dU,
                                                      self._get_new_action(policy, last_obs),
                                                      self.current_action_id)
@@ -231,14 +256,17 @@ class AgentROS(Agent):
             else:
                 rospy.sleep(0.01)
                 consecutive_failures += 1
+
                 if time.time() - start_time > time_to_run and consecutive_failures > 5:
                     # we only stop when we have run for the trial time and are no longer receiving obs.
                     should_stop = True
         rospy.sleep(0.25)  # wait for finished trial to come in.
         result = self._trial_service._subscriber_msg
+
         return result  # the trial has completed. Here is its message.
 
     def _get_new_action(self, policy, obs):
+        # Return an action for a state.
         return policy.act(None, obs, None, None)
 
     def _tf_callback(self, message):
