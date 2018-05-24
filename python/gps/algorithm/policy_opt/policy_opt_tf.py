@@ -36,6 +36,7 @@ class PolicyOptTf(PolicyOpt):
         if self._hyperparams['use_gpu'] == 1:
             self.gpu_device = self._hyperparams['gpu_id']
             self.device_string = "/gpu:" + str(self.gpu_device)
+        
         self.act_op = None  # mu_hat
         self.feat_op = None # features
         self.loss_scalar = None
@@ -50,10 +51,13 @@ class PolicyOptTf(PolicyOpt):
         self.sess = tf.Session()
         self.policy = TfPolicy(dU, self.obs_tensor, self.act_op, self.feat_op,
                                np.zeros(dU), self.sess, self.device_string, copy_param_scope=self._hyperparams['copy_param_scope'])
+        
         # List of indices for state (vector) data and image (tensor) data in observation.
         self.x_idx, self.img_idx, i = [], [], 0
+        
         if 'obs_image_data' not in self._hyperparams['network_params']:
             self._hyperparams['network_params'].update({'obs_image_data': []})
+        
         for sensor in self._hyperparams['network_params']['obs_include']:
             dim = self._hyperparams['network_params']['sensor_dims'][sensor]
             if sensor in self._hyperparams['network_params']['obs_image_data']:
@@ -61,6 +65,7 @@ class PolicyOptTf(PolicyOpt):
             else:
                 self.x_idx = self.x_idx + list(range(i, i+dim))
             i += dim
+        
         init_op = tf.initialize_all_variables()
         self.sess.run(init_op)
 
@@ -115,11 +120,13 @@ class PolicyOptTf(PolicyOpt):
 
         # Renormalize weights.
         tgt_wt *= (float(N * T) / np.sum(tgt_wt))
+        
         # Allow weights to be at most twice the robust median.
         mn = np.median(tgt_wt[(tgt_wt > 1e-2).nonzero()])
         for n in range(N):
             for t in range(T):
                 tgt_wt[n, t] = min(tgt_wt[n, t], 2 * mn)
+
         # Robust median should be around one.
         tgt_wt /= mn
 
@@ -272,7 +279,9 @@ class PolicyOptTf(PolicyOpt):
     def __setstate__(self, state):
         from tensorflow.python.framework import ops
         ops.reset_default_graph()  # we need to destroy the default graph before re_init or checkpoint won't restore.
+        
         self.__init__(state['hyperparams'], state['dO'], state['dU'])
+        
         self.policy.scale = state['scale']
         self.policy.bias = state['bias']
         self.policy.x_idx = state['x_idx']

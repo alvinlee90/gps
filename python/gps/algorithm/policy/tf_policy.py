@@ -95,11 +95,13 @@ class TfPolicy(Policy):
         if should_hash is True:
             hash_str = str(uuid.uuid4())
             checkpoint_path += hash_str
+
         os.mkdir(checkpoint_path + '/')
         checkpoint_path += '/_pol'
         pickled_pol = {'deg_obs': deg_obs, 'deg_action': deg_action, 'chol_pol_covar': self.chol_pol_covar,
                        'checkpoint_path_tf': checkpoint_path + '_tf_data', 'scale': self.scale, 'bias': self.bias,
                        'device_string': self.device_string, 'goal_state': goal_state, 'x_idx': self.x_idx}
+        
         pickle.dump(pickled_pol, open(checkpoint_path, "wb"))
         saver = tf.train.Saver()
         saver.save(self.sess, checkpoint_path + '_tf_data')
@@ -131,5 +133,6 @@ class TfPolicy(Policy):
         cls_init.scale = pol_dict['scale']
         cls_init.bias = pol_dict['bias']
         cls_init.x_idx = pol_dict['x_idx']
+
         return cls_init
 
